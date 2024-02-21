@@ -49,6 +49,11 @@ int straight_ctx_update_loop (hashcat_ctx_t *hashcat_ctx)
   {
     if (user_options_extra->wordlist_mode == WL_MODE_FILE)
     {
+      if (hashcat_ctx->fd_list[straight_ctx->dicts_pos].is_valid == -1)
+      {
+        return 1;
+      }
+
       if (induct_ctx->induction_dictionaries_cnt)
       {
         straight_ctx->dict = induct_ctx->induction_dictionaries[induct_ctx->induction_dictionaries_pos];
@@ -74,9 +79,14 @@ int straight_ctx_update_loop (hashcat_ctx_t *hashcat_ctx)
         return -1;
       }
 
-      const int rc = count_words (hashcat_ctx, fd, straight_ctx->dict, &status_ctx->words_cnt);
+      fseek (fd, hashcat_ctx->fd_list[straight_ctx->dicts_pos].words_start * hashcat_ctx->fd_list[straight_ctx->dicts_pos].word_base, SEEK_SET);
 
-      if (rc == -1)
+      //const int rc = count_words (hashcat_ctx, hashcat_ctx->fd_list + straight_ctx->dicts_pos, straight_ctx->dict, &status_ctx->words_cnt);
+      status_ctx->words_cnt = hashcat_ctx->fd_list[straight_ctx->dicts_pos].words_end - hashcat_ctx->fd_list[straight_ctx->dicts_pos].words_start + 1; 
+
+
+      //if (rc == -1)
+      if (0)
       {
         event_log_error (hashcat_ctx, "Integer overflow detected in keyspace of wordlist: %s", straight_ctx->dict);
 
@@ -95,6 +105,7 @@ int straight_ctx_update_loop (hashcat_ctx_t *hashcat_ctx)
   }
   else if (user_options->attack_mode == ATTACK_MODE_COMBI)
   {
+#if 0
     logfile_sub_string (combinator_ctx->dict1);
     logfile_sub_string (combinator_ctx->dict2);
 
@@ -149,6 +160,7 @@ int straight_ctx_update_loop (hashcat_ctx_t *hashcat_ctx)
 
       return 0;
     }
+#endif
   }
   else if (user_options->attack_mode == ATTACK_MODE_BF)
   {
@@ -156,6 +168,7 @@ int straight_ctx_update_loop (hashcat_ctx_t *hashcat_ctx)
   }
   else if ((user_options->attack_mode == ATTACK_MODE_HYBRID1) || (user_options->attack_mode == ATTACK_MODE_HYBRID2))
   {
+#if 0
     if (induct_ctx->induction_dictionaries_cnt)
     {
       straight_ctx->dict = induct_ctx->induction_dictionaries[induct_ctx->induction_dictionaries_pos];
@@ -194,6 +207,7 @@ int straight_ctx_update_loop (hashcat_ctx_t *hashcat_ctx)
 
       return 0;
     }
+#endif
   }
 
   return 0;
@@ -212,6 +226,7 @@ int straight_ctx_init (hashcat_ctx_t *hashcat_ctx)
   if (user_options->opencl_info == true) return 0;
   if (user_options->show        == true) return 0;
   if (user_options->usage       == true) return 0;
+  if (user_options->mm_usage    == true) return 0;
   if (user_options->version     == true) return 0;
 
   if (user_options->attack_mode == ATTACK_MODE_BF) return 0;

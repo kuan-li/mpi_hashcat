@@ -1,0 +1,10 @@
+# do not place extra / in the end of PREFIX
+PREFIX                  = /home/likuan/mm-rel-3.6
+MPI                     = 1
+CC											= mpicc 
+CC_LINUX_32             = mpicc
+CC_LINUX_64             = mpicc
+MM_CFLAGS								= -I /usr/local/cuda/include 
+MM_LFLAGS								= -L /usr/local/cuda/lib64
+DISABLE_LKW							= 0
+include src/Makefile

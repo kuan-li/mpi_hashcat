@@ -15,6 +15,10 @@
 #include "shared.h"
 #include "status.h"
 #include "monitor.h"
+#ifdef ENABLE_MPI
+#include "mpi.h"
+#endif
+#include "mm_impl.h"
 
 int get_runtime_left (const hashcat_ctx_t *hashcat_ctx)
 {
@@ -58,7 +62,7 @@ static int monitor (hashcat_ctx_t *hashcat_ctx)
   bool hwmon_check        = false;
   bool performance_check  = false;
 
-  const int   sleep_time      = 1;
+  const int   sleep_time      = 1;      // 1s 
   const int   temp_threshold  = 1;      // degrees celcius
   const int   fan_speed_min   = 33;     // in percentage
   const int   fan_speed_max   = 100;
@@ -97,7 +101,7 @@ static int monitor (hashcat_ctx_t *hashcat_ctx)
 
   if ((runtime_check == false) && (remove_check == false) && (status_check == false) && (restore_check == false) && (hwmon_check == false) && (performance_check == false))
   {
-    return 0;
+    //return 0;
   }
 
   // these variables are mainly used for fan control
@@ -125,11 +129,59 @@ static int monitor (hashcat_ctx_t *hashcat_ctx)
 
   u32 restore_left  = user_options->restore_timer;
   u32 remove_left   = user_options->remove_timer;
-  u32 status_left   = user_options->status_timer;
+  //u32 status_left   = user_options->status_timer;
+  u32 status_left   = user_options->mm_log_interval;
 
-  while (status_ctx->shutdown_inner == false)
+  int global_cracked[3] = {0};
+
+
+  while (/*status_ctx->shutdown_inner == false*/true)
   {
+    if(status_ctx->shutdown_inner == true)
+    {
+      hashcat_ctx->cracked[1] = 1; 
+    }
+
     hc_sleep (sleep_time);
+
+#ifdef ENABLE_MPI
+    MPI_Reduce(hashcat_ctx->cracked, global_cracked, 3, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Bcast(global_cracked, 3, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Barrier(MPI_COMM_WORLD);
+#else
+    global_cracked[0] = hashcat_ctx->cracked[0];
+    global_cracked[1] = hashcat_ctx->cracked[1];
+    global_cracked[2] = hashcat_ctx->cracked[2];
+#endif
+
+    /// at least 1 proc cracked
+    if (global_cracked[0] != 0)
+    {
+      hc_thread_mutex_lock (status_ctx->mux_display);
+      if ( !hashcat_ctx->crack_log_done )
+      {
+        update_log(hashcat_ctx,true);
+      }
+      hc_thread_mutex_unlock (status_ctx->mux_display);
+
+      mycracked(hashcat_ctx);
+      break;
+    }
+
+    /// all running over but not cracked
+    if (global_cracked[1] == hashcat_ctx->total_proc_cnt)
+    {
+      hc_thread_mutex_lock (status_ctx->mux_display);
+      update_log(hashcat_ctx,true);
+      hc_thread_mutex_unlock (status_ctx->mux_display);
+      break;
+    }
+
+    if (global_cracked[2] != 0)
+    {
+      myabort(hashcat_ctx);
+      break;
+    }
 
     if (status_ctx->devices_status == STATUS_INIT) continue;
 
@@ -320,7 +372,7 @@ static int monitor (hashcat_ctx_t *hashcat_ctx)
       }
     }
 
-    if (status_check == true)
+    //if (status_check == true)
     {
       status_left--;
 
@@ -328,11 +380,13 @@ static int monitor (hashcat_ctx_t *hashcat_ctx)
       {
         hc_thread_mutex_lock (status_ctx->mux_display);
 
-        EVENT_DATA (EVENT_MONITOR_STATUS_REFRESH, NULL, 0);
+        update_log(hashcat_ctx, false);
+        //EVENT_DATA (EVENT_MONITOR_STATUS_REFRESH, NULL, 0);
 
         hc_thread_mutex_unlock (status_ctx->mux_display);
 
-        status_left = user_options->status_timer;
+        //status_left = user_options->status_timer;
+        status_left = user_options->mm_log_interval;
       }
     }
 

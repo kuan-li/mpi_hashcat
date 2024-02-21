@@ -149,7 +149,7 @@ int pidfile_ctx_init (hashcat_ctx_t *hashcat_ctx)
   pidfile_ctx_t   *pidfile_ctx   = hashcat_ctx->pidfile_ctx;
   user_options_t  *user_options  = hashcat_ctx->user_options;
 
-  hc_asprintf (&pidfile_ctx->filename, "%s/%s.pid", folder_config->session_dir, user_options->session);
+  hc_asprintf (&pidfile_ctx->filename, "%s/%s-%d.pid", folder_config->session_dir, user_options->session, hashcat_ctx->cur_proc_id);
 
   pidfile_ctx->pidfile_written = false;
 

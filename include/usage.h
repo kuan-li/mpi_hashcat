@@ -11,5 +11,6 @@
 
 void usage_mini_print (const char *progname);
 void usage_big_print  (const char *progname);
+void usage_big_print_mm (const char *progname);
 
 #endif // _USAGE_H

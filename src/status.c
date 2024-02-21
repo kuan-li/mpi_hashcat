@@ -914,7 +914,8 @@ char *status_get_time_started_relative (const hashcat_ctx_t *hashcat_ctx)
 
   char *display_run = (char *) malloc (HCBUFSIZ_TINY);
 
-  format_timer_display (tmp, display_run, HCBUFSIZ_TINY);
+  snprintf(display_run, HCBUFSIZ_TINY-1, " %lu ", sec_run);
+  //format_timer_display (tmp, display_run, HCBUFSIZ_TINY);
 
   return display_run;
 }
@@ -1030,7 +1031,8 @@ char *status_get_time_estimated_relative (const hashcat_ctx_t *hashcat_ctx)
 
   char *display = (char *) malloc (HCBUFSIZ_TINY);
 
-  format_timer_display (tmp, display, HCBUFSIZ_TINY);
+  //format_timer_display (tmp, display, HCBUFSIZ_TINY);
+  snprintf(display, HCBUFSIZ_TINY -1, "%lu", sec_etc);
 
   if (user_options->runtime > 0)
   {
@@ -1199,11 +1201,34 @@ u64 status_get_progress_restored (const hashcat_ctx_t *hashcat_ctx)
 
 u64 status_get_progress_cur (const hashcat_ctx_t *hashcat_ctx)
 {
+  const status_ctx_t *status_ctx = hashcat_ctx->status_ctx;
+  const user_options_extra_t * user_options_extra = hashcat_ctx->user_options_extra;
+  const mask_ctx_t           *mask_ctx           = hashcat_ctx->mask_ctx;
+  const straight_ctx_t       *straight_ctx       = hashcat_ctx->straight_ctx;
+
   const u64 progress_done     = status_get_progress_done     (hashcat_ctx);
   const u64 progress_rejected = status_get_progress_rejected (hashcat_ctx);
   const u64 progress_restored = status_get_progress_restored (hashcat_ctx);
 
-  const u64 progress_cur = progress_done + progress_rejected + progress_restored;
+  u64 amp_cnt = 0;
+  if (user_options_extra->attack_kern == ATTACK_KERN_STRAIGHT)
+  {
+    /*
+    if (straight_ctx->kernel_rules_cnt)
+    {
+      amp_cnt = straight_ctx->kernel_rules_cnt;
+    }
+    */
+  }
+  else if (user_options_extra->attack_kern == ATTACK_KERN_BF)
+  {
+    if (mask_ctx->bfs_cnt)
+    {
+      amp_cnt = mask_ctx->bfs_cnt;
+    }
+  }
+
+  const u64 progress_cur = progress_done + progress_rejected + progress_restored - status_ctx->words_off_ori * amp_cnt;
 
   return progress_cur;
 }
@@ -1421,8 +1446,9 @@ char *status_get_speed_sec_all (const hashcat_ctx_t *hashcat_ctx)
   const double hashes_msec_all = status_get_hashes_msec_all (hashcat_ctx);
 
   char *display = (char *) malloc (HCBUFSIZ_TINY);
+  snprintf(display, HCBUFSIZ_TINY, "%lu", (u64)(hashes_msec_all * 1000));
 
-  format_speed_display (hashes_msec_all * 1000, display, HCBUFSIZ_TINY);
+  //format_speed_display (hashes_msec_all * 1000, display, HCBUFSIZ_TINY);
 
   return display;
 }

@@ -45,6 +45,7 @@ int induct_ctx_init (hashcat_ctx_t *hashcat_ctx)
   if (user_options->speed_only    == true) return 0;
   if (user_options->progress_only == true) return 0;
   if (user_options->usage         == true) return 0;
+  if (user_options->mm_usage      == true) return 0;
   if (user_options->version       == true) return 0;
 
   if (user_options->attack_mode == ATTACK_MODE_BF)    return 0;
@@ -56,7 +57,7 @@ int induct_ctx_init (hashcat_ctx_t *hashcat_ctx)
   {
     char *root_directory;
 
-    hc_asprintf (&root_directory, "%s/%s.%s", folder_config->session_dir, user_options->session, INDUCT_DIR);
+    hc_asprintf (&root_directory, "%s/%s-%d.%s", folder_config->session_dir, user_options->session, hashcat_ctx->cur_proc_id, INDUCT_DIR);
 
     if (rmdir (root_directory) == -1)
     {
@@ -68,7 +69,7 @@ int induct_ctx_init (hashcat_ctx_t *hashcat_ctx)
       {
         char *root_directory_mv;
 
-        hc_asprintf (&root_directory_mv, "%s/%s.induct.%d", folder_config->session_dir, user_options->session, (int) time (NULL));
+        hc_asprintf (&root_directory_mv, "%s/%s.induct.%d.%d", folder_config->session_dir, user_options->session, hashcat_ctx->cur_proc_id, (int) time (NULL));
 
         if (rename (root_directory, root_directory_mv) != 0)
         {

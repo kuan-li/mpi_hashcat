@@ -266,6 +266,7 @@ size_t event_log_warning (hashcat_ctx_t *hashcat_ctx, const char *fmt, ...)
 size_t event_log_error (hashcat_ctx_t *hashcat_ctx, const char *fmt, ...)
 {
   event_ctx_t *event_ctx = hashcat_ctx->event_ctx;
+  hashcat_ctx -> cracked[2] = 1;
 
   if (fmt == NULL)
   {

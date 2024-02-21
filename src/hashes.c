@@ -25,6 +25,7 @@
 #include "thread.h"
 #include "timer.h"
 #include "locking.h"
+#include "mm_impl.h"
 
 int sort_by_digest_p0p1 (const void *v1, const void *v2, void *v3)
 {
@@ -254,6 +255,7 @@ void check_hash (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param, pl
 
   build_plain (hashcat_ctx, device_param, plain, plain_buf, &plain_len);
 
+
   // crackpos
 
   u64 crackpos = 0;
@@ -285,6 +287,9 @@ void check_hash (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param, pl
   tmp_buf[0] = 0;
 
   const int tmp_len = outfile_write (hashcat_ctx, (char *) out_buf, plain_ptr, plain_len, crackpos, NULL, 0, (char *) tmp_buf);
+
+  hashcat_ctx->mm_crack_buf =  (u8*)hccalloc(strlen(tmp_buf) +1, sizeof(u8));
+  strcpy(hashcat_ctx->mm_crack_buf, tmp_buf);
 
   outfile_write_close (hashcat_ctx);
 

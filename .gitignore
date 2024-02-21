@@ -2,6 +2,7 @@
 *.bin
 *.app
 hashcat
+mm
 hashcat.exe
 libhashcat.so
 hashcat.dll
@@ -18,3 +19,6 @@ lib/*.a
 obj/*.o
 obj/lzma_sdk/*.o
 include/CL
+
+.exvim.*/
+*.exvim

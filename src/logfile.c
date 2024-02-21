@@ -10,6 +10,7 @@
 #include "logfile.h"
 #include "locking.h"
 #include "shared.h"
+#include "mm_impl.h"
 
 void logfile_generate_topid (hashcat_ctx_t *hashcat_ctx)
 {
@@ -39,6 +40,8 @@ void logfile_generate_subid (hashcat_ctx_t *hashcat_ctx)
 
 void logfile_append (hashcat_ctx_t *hashcat_ctx, const char *fmt, ...)
 {
+  return;
+
   logfile_ctx_t *logfile_ctx = hashcat_ctx->logfile_ctx;
 
   if (logfile_ctx->enabled == false) return;

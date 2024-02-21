@@ -13,6 +13,7 @@
 #include "usage.h"
 #include "outfile.h"
 #include "user_options.h"
+#include "mm_impl.h"
 
 static const char short_options[] = "hVvm:a:r:j:k:g:o:t:d:D:n:u:c:p:s:l:1:2:3:4:iIbw:";
 
@@ -107,6 +108,13 @@ static const struct option long_options[] =
   {"version",                   no_argument,       0, IDX_VERSION},
   {"weak-hash-threshold",       required_argument, 0, IDX_WEAK_HASH_THRESHOLD},
   {"workload-profile",          required_argument, 0, IDX_WORKLOAD_PROFILE},
+
+  {"mm-attack-mode",            required_argument, 0, IDX_MM_ATTACK_MODE},
+  {"mm-log-dir",                required_argument, 0, IDX_MM_LOG_DIR},
+  {"mm-log-interval",           required_argument, 0, IDX_MM_LOG_INTERVAL},
+  {"mm-help",                   no_argument,       0, IDX_MM_HELP},
+  {"mm-stdout-enable",          no_argument,       0, IDX_MM_STDOUT_ENABLE},
+
   {0, 0, 0, 0}
 };
 
@@ -217,6 +225,12 @@ int user_options_init (hashcat_ctx_t *hashcat_ctx)
   user_options->hc_bin                    = PROGNAME;
   user_options->hc_argc                   = 0;
   user_options->hc_argv                   = NULL;
+
+  user_options->mm_log_dir                = NULL; 
+  user_options->mm_log_interval           = DEFAULT_MM_LOG_INTERVAL; 
+  user_options->mm_attack_mode            = MM_STRAIGHT; 
+  user_options->mm_usage                  = USAGE;
+  user_options->mm_stdout_enable          = false;
 
   return 0;
 }
@@ -411,6 +425,12 @@ int user_options_getopt (hashcat_ctx_t *hashcat_ctx, int argc, char **argv)
       case IDX_CUSTOM_CHARSET_3:          user_options->custom_charset_3          = optarg;         break;
       case IDX_CUSTOM_CHARSET_4:          user_options->custom_charset_4          = optarg;         break;
 
+      case IDX_MM_LOG_DIR:                user_options->mm_log_dir                = optarg;         break;
+      case IDX_MM_ATTACK_MODE:            user_options->mm_attack_mode            = atoi (optarg);  break;
+      case IDX_MM_LOG_INTERVAL:           user_options->mm_log_interval           = atoi (optarg);  break;
+      case IDX_MM_HELP:                   user_options->mm_usage                  = true;           break;
+      case IDX_MM_STDOUT_ENABLE:          user_options->mm_stdout_enable          = true;           break;
+
       default:
       {
         event_log_error (hashcat_ctx, "Invalid argument specified.");
@@ -426,6 +446,17 @@ int user_options_getopt (hashcat_ctx_t *hashcat_ctx, int argc, char **argv)
 
     return -1;
   }
+
+  if (user_options->mm_attack_mode == MM_STRAIGHT)
+  {
+    user_options->attack_mode = ATTACK_MODE_STRAIGHT;
+  }
+  else if (user_options->mm_attack_mode == MM_BRUTAL_FORCE)
+  {
+    user_options->attack_mode = ATTACK_MODE_BF;
+  }
+
+  /// add some other override config item here
 
   user_options->hc_bin = argv[0];
 
@@ -1016,7 +1047,7 @@ int user_options_sanity (hashcat_ctx_t *hashcat_ctx)
   {
     show_error = false;
   }
-  else if (user_options->usage == true)
+  else if (user_options->usage == true || user_options->mm_usage == true)
   {
     show_error = false;
   }
@@ -1507,6 +1538,7 @@ void user_options_extra_destroy (hashcat_ctx_t *hashcat_ctx)
   memset (user_options_extra, 0, sizeof (user_options_extra_t));
 }
 
+////@TODO
 u64 user_options_extra_amplifier (hashcat_ctx_t *hashcat_ctx)
 {
   const combinator_ctx_t     *combinator_ctx     = hashcat_ctx->combinator_ctx;

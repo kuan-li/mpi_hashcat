@@ -367,6 +367,7 @@ static int calc (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param)
 
     if (attack_mode == ATTACK_MODE_COMBI)
     {
+#if 0
       if (combinator_ctx->combs_mode == COMBINATOR_MODE_BASE_LEFT)
       {
         dictfile = combinator_ctx->dict1;
@@ -408,6 +409,7 @@ static int calc (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param)
 
         device_param->combs_fp = combs_fp;
       }
+#endif
     }
 
     FILE *fd = fopen (dictfile, "rb");
@@ -418,6 +420,8 @@ static int calc (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param)
 
       return -1;
     }
+
+    fseek (fd, hashcat_ctx->fd_list[straight_ctx->dicts_pos].words_start * hashcat_ctx->fd_list[straight_ctx->dicts_pos].word_base, SEEK_SET);
 
     hashcat_ctx_t *hashcat_ctx_tmp = (hashcat_ctx_t *) hcmalloc (sizeof (hashcat_ctx_t));
 
@@ -459,6 +463,7 @@ static int calc (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param)
 
       fclose (fd);
 
+      ///@TODO what if err happened
       hcfree (hashcat_ctx_tmp->wl_data);
 
       hcfree (hashcat_ctx_tmp);
@@ -493,13 +498,16 @@ static int calc (hashcat_ctx_t *hashcat_ctx, hc_device_param_t *device_param)
 
         char rule_buf_out[BLOCK_SIZE];
 
-        for ( ; words_cur < words_off; words_cur++) get_next_word (hashcat_ctx_tmp, fd, &line_buf, &line_len);
+        for ( ; words_cur < words_off; words_cur++) get_next_word (hashcat_ctx_tmp, hashcat_ctx->fd_list + straight_ctx->dicts_pos, fd,  &line_buf, &line_len);
 
         for ( ; words_cur < words_fin; words_cur++)
         {
-          get_next_word (hashcat_ctx_tmp, fd, &line_buf, &line_len);
+          get_next_word (hashcat_ctx_tmp, hashcat_ctx->fd_list + straight_ctx->dicts_pos, fd, &line_buf, &line_len);
 
           line_len = convert_from_hex (hashcat_ctx, line_buf, line_len);
+
+          u32 line_buf_len = strlen(line_buf);
+          line_len = (line_len < line_buf_len) ? line_len: line_buf_len;
 
           // post-process rule engine
 

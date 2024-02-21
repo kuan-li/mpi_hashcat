@@ -23,6 +23,7 @@ int combinator_ctx_init (hashcat_ctx_t *hashcat_ctx)
   if (user_options->opencl_info == true) return 0;
   if (user_options->show        == true) return 0;
   if (user_options->usage       == true) return 0;
+  if (user_options->mm_usage    == true) return 0;
   if (user_options->version     == true) return 0;
 
   if ((user_options->attack_mode != ATTACK_MODE_COMBI)
@@ -80,11 +81,15 @@ int combinator_ctx_init (hashcat_ctx_t *hashcat_ctx)
       return -1;
     }
 
+    mm_extend_fd_t * mfp1 = create_mm_fd();
+    mm_extend_fd_t * mfp2 = create_mm_fd();
+
     combinator_ctx->combs_cnt = 1;
 
     u64 words1_cnt = 0;
 
-    const int rc1 = count_words (hashcat_ctx, fp1, dictfile1, &words1_cnt);
+
+    const int rc1 = count_words (hashcat_ctx, mfp1, fp1, dictfile1, &words1_cnt);
 
     if (rc1 == -1)
     {
@@ -92,6 +97,9 @@ int combinator_ctx_init (hashcat_ctx_t *hashcat_ctx)
 
       fclose (fp1);
       fclose (fp2);
+
+      destory_mm_fd(mfp1);
+      destory_mm_fd(mfp2);
 
       return -1;
     }
@@ -103,6 +111,9 @@ int combinator_ctx_init (hashcat_ctx_t *hashcat_ctx)
       fclose (fp1);
       fclose (fp2);
 
+      destory_mm_fd(mfp1);
+      destory_mm_fd(mfp2);
+
       return -1;
     }
 
@@ -110,7 +121,7 @@ int combinator_ctx_init (hashcat_ctx_t *hashcat_ctx)
 
     u64 words2_cnt = 0;
 
-    const int rc2 = count_words (hashcat_ctx, fp2, dictfile2, &words2_cnt);
+    const int rc2 = count_words (hashcat_ctx, mfp2, fp2, dictfile2, &words2_cnt);
 
     if (rc2 == -1)
     {
@@ -118,6 +129,9 @@ int combinator_ctx_init (hashcat_ctx_t *hashcat_ctx)
 
       fclose (fp1);
       fclose (fp2);
+
+      destory_mm_fd(mfp1);
+      destory_mm_fd(mfp2);
 
       return -1;
     }
@@ -129,11 +143,17 @@ int combinator_ctx_init (hashcat_ctx_t *hashcat_ctx)
       fclose (fp1);
       fclose (fp2);
 
+      destory_mm_fd(mfp1);
+      destory_mm_fd(mfp2);
+
       return -1;
     }
 
     fclose (fp1);
     fclose (fp2);
+
+    destory_mm_fd(mfp1);
+    destory_mm_fd(mfp2);
 
     combinator_ctx->dict1 = dictfile1;
     combinator_ctx->dict2 = dictfile2;

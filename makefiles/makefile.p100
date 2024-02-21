@@ -1,0 +1,11 @@
+
+# do not place extra / in the end of PREFIX
+PREFIX                  = /root/mm-rel-3.6
+MPI                     = 0
+CC											= gcc
+CC_LINUX_32             = gcc
+CC_LINUX_64             = gcc
+MM_CFLAGS								= -I /usr/local/cuda/include
+MM_LFLAGS								= -L /usr/local/cuda/lib64
+DISABLE_LKW						  = 0
+include src/Makefile

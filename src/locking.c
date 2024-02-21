@@ -8,6 +8,10 @@
 #include "event.h"
 #include "locking.h"
 
+#if defined DISABLE_LKW
+#undef F_SETLKW
+#endif
+
 #if defined (F_SETLKW)
 
 int lock_file (FILE *fp)

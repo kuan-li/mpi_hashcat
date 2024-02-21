@@ -44,7 +44,7 @@ endif
 ##
 
 DESTDIR                 ?=
-PREFIX                  ?= /usr/local
+PREFIX                  ?=
 
 INSTALL_FOLDER          ?= $(PREFIX)/bin
 LIBRARY_FOLDER          ?= $(PREFIX)/lib
@@ -80,7 +80,6 @@ OPENCL_HEADERS_KHRONOS  := deps/OpenCL-Headers
 ## Native compiler paths
 ##
 
-CC                      := gcc
 FIND                    := find
 INSTALL                 := install
 RM                      := rm
@@ -101,9 +100,6 @@ endif
 ##
 ## Cross compiler paths
 ##
-
-CC_LINUX_32             := gcc
-CC_LINUX_64             := gcc
 
 CC_WIN_32               := i686-w64-mingw32-gcc
 CC_WIN_64               := x86_64-w64-mingw32-gcc
@@ -129,7 +125,15 @@ VERSION_TAG             := $(shell test -d .git && git describe --tags --dirty=+
 ## General compiler and linker options
 ##
 
-CFLAGS                  += -pipe -std=gnu99 -Iinclude/ -Iinclude/lzma_sdk/ -IOpenCL/
+CFLAGS                  += -pipe -std=gnu99 -Iinclude/ -Iinclude/lzma_sdk/ -IOpenCL/ $(MM_CFLAGS)
+
+ifeq ($(MPI),1)
+CFLAGS += -DENABLE_MPI
+endif
+
+ifeq ($(DISABLE_LKW),1)
+CFLAGS += -DDISABLE_LKW
+endif
 
 ifeq ($(PRODUCTION),0)
 CFLAGS                  += -W
@@ -193,7 +197,7 @@ CFLAGS_NATIVE           += -I$(OPENCL_HEADERS_KHRONOS)/
 CFLAGS_NATIVE           += -DWITH_HWMON
 LFLAGS_NATIVE           := $(LFLAGS)
 LFLAGS_NATIVE           += -lpthread
-LFLAGS_NATIVE           += -ldl
+LFLAGS_NATIVE           += -ldl $(MM_LFLAGS)
 endif # Linux
 
 ifeq ($(UNAME),FreeBSD)
@@ -274,7 +278,7 @@ LFLAGS_CROSS_WIN64      += -lpsapi
 ## Objects
 ##
 
-OBJS_ALL                := affinity autotune benchmark bitmap bitops combinator common convert cpt cpu_aes cpu_crc32 cpu_des cpu_md4 cpu_md5 cpu_sha1 cpu_sha256 debugfile dictstat dispatch dynloader event ext_ADL ext_nvapi ext_nvml ext_OpenCL ext_sysfs ext_xnvctrl ext_lzma lzma_sdk/Alloc lzma_sdk/Lzma2Dec lzma_sdk/LzmaDec filehandling folder hashcat hashes hlfmt hwmon induct interface locking logfile loopback memory monitor mpsp opencl outfile_check outfile pidfile potfile restore rp rp_cpu rp_kernel_on_cpu shared status stdout straight terminal thread timer tuningdb usage user_options weak_hash wordlist
+OBJS_ALL                := affinity autotune benchmark bitmap bitops combinator common convert cpt cpu_aes cpu_crc32 cpu_des cpu_md4 cpu_md5 cpu_sha1 cpu_sha256 debugfile dictstat dispatch dynloader event ext_ADL ext_nvapi ext_nvml ext_OpenCL ext_sysfs ext_xnvctrl ext_lzma lzma_sdk/Alloc lzma_sdk/Lzma2Dec lzma_sdk/LzmaDec filehandling folder hashcat hashes hlfmt hwmon induct interface locking logfile loopback memory monitor mpsp opencl outfile_check outfile pidfile potfile restore rp rp_cpu rp_kernel_on_cpu shared status stdout straight terminal thread timer tuningdb usage user_options weak_hash wordlist mm_impl
 
 NATIVE_STATIC_OBJS      := $(foreach OBJ,$(OBJS_ALL),obj/$(OBJ).NATIVE.STATIC.o)
 NATIVE_SHARED_OBJS      := $(foreach OBJ,$(OBJS_ALL),obj/$(OBJ).NATIVE.SHARED.o)

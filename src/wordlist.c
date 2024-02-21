@@ -44,23 +44,40 @@ u32 convert_from_hex (hashcat_ctx_t *hashcat_ctx, char *line_buf, const u32 line
   return (line_len);
 }
 
-int load_segment (hashcat_ctx_t *hashcat_ctx, FILE *fd)
+///@ MARK
+int load_segment (hashcat_ctx_t *hashcat_ctx, mm_extend_fd_t *mfd, FILE *fd )
 {
   wl_data_t *wl_data = hashcat_ctx->wl_data;
 
-  // NOTE: use (never changing) ->incr here instead of ->avail otherwise the buffer gets bigger and bigger
+  long left_len = left_size(mfd, fd);
+  if (left_len == 0)
+  {
+    return -1;
+  }
+  else
+  {
+    if (left_len > wl_data->incr - 1000)
+    {
+      left_len = wl_data->incr - 1000;
+    }
+  }
 
+  /// make sure that left_len can be divided by mfd->word_base
+  left_len = ( left_len / mfd->word_base) * mfd->word_base;
+
+  // NOTE: use (never changing) ->incr here instead of ->avail otherwise the buffer gets bigger and bigger
   wl_data->pos = 0;
 
-  wl_data->cnt = fread (wl_data->buf, 1, wl_data->incr - 1000, fd);
+  wl_data->cnt = fread (wl_data->buf, 1, left_len, fd);
 
   wl_data->buf[wl_data->cnt] = 0;
 
-  if (wl_data->cnt == 0) return 0;
+  //if (wl_data->cnt == 0) return 0;
 
-  if (wl_data->buf[wl_data->cnt - 1] == '\n') return 0;
+  //if (wl_data->buf[wl_data->cnt - 1] == '\n') return 0;
 
-  while (!feof (fd))
+  /*
+  while (!mm_feof (mfd))
   {
     if (wl_data->cnt == wl_data->avail)
     {
@@ -69,7 +86,7 @@ int load_segment (hashcat_ctx_t *hashcat_ctx, FILE *fd)
       wl_data->avail += wl_data->incr;
     }
 
-    const int c = fgetc (fd);
+    const int c = fgetc (mfd->fd);
 
     if (c == EOF) break;
 
@@ -79,15 +96,18 @@ int load_segment (hashcat_ctx_t *hashcat_ctx, FILE *fd)
 
     if (c == '\n') break;
   }
+  */
 
   // ensure stream ends with a newline
 
+  /*
   if (wl_data->buf[wl_data->cnt - 1] != '\n')
   {
     wl_data->cnt++;
 
     wl_data->buf[wl_data->cnt - 1] = '\n';
   }
+  */
 
   return 0;
 }
@@ -167,7 +187,7 @@ void get_next_word_std (char *buf, u64 sz, u64 *len, u64 *off)
   *len = sz;
 }
 
-void get_next_word (hashcat_ctx_t *hashcat_ctx, FILE *fd, char **out_buf, u32 *out_len)
+void get_next_word (hashcat_ctx_t *hashcat_ctx, mm_extend_fd_t *mfd, FILE* fd, char **out_buf, u32 *out_len)
 {
   user_options_t       *user_options       = hashcat_ctx->user_options;
   user_options_extra_t *user_options_extra = hashcat_ctx->user_options_extra;
@@ -175,12 +195,12 @@ void get_next_word (hashcat_ctx_t *hashcat_ctx, FILE *fd, char **out_buf, u32 *o
 
   while (wl_data->pos < wl_data->cnt)
   {
-    u64 off;
-    u64 len;
+    u64 off = mfd->word_base;
+    u64 len = mfd->word_base;
 
     char *ptr = wl_data->buf + wl_data->pos;
 
-    wl_data->func (ptr, wl_data->cnt - wl_data->pos, &len, &off);
+    //wl_data->func (ptr, wl_data->cnt - wl_data->pos, &len, &off);
 
     wl_data->pos += off;
 
@@ -241,16 +261,16 @@ void get_next_word (hashcat_ctx_t *hashcat_ctx, FILE *fd, char **out_buf, u32 *o
     return;
   }
 
-  if (feof (fd))
+  if (mm_feof (mfd, fd))
   {
-    fprintf (stderr, "BUG feof()!!\n");
+    fprintf (stderr, "BUG feof()!!, pos %ld cnt %ld\n", wl_data->pos, wl_data->cnt);
 
     return;
   }
 
-  load_segment (hashcat_ctx, fd);
+  load_segment (hashcat_ctx, mfd, fd);
 
-  get_next_word (hashcat_ctx, fd, out_buf, out_len);
+  get_next_word (hashcat_ctx, mfd, fd, out_buf, out_len);
 }
 
 void pw_add (hc_device_param_t *device_param, const u8 *pw_buf, const int pw_len)
@@ -277,7 +297,7 @@ void pw_add (hc_device_param_t *device_param, const u8 *pw_buf, const int pw_len
   //}
 }
 
-int count_words (hashcat_ctx_t *hashcat_ctx, FILE *fd, const char *dictfile, u64 *result)
+int count_words (hashcat_ctx_t *hashcat_ctx, mm_extend_fd_t *mfd, FILE *fd, const char *dictfile, u64 *result)
 {
   combinator_ctx_t     *combinator_ctx     = hashcat_ctx->combinator_ctx;
   straight_ctx_t       *straight_ctx       = hashcat_ctx->straight_ctx;
@@ -294,7 +314,6 @@ int count_words (hashcat_ctx_t *hashcat_ctx, FILE *fd, const char *dictfile, u64
   if (hc_fstat (fileno (fd), &d.stat))
   {
     *result = 0;
-
     return 0;
   }
 
@@ -319,7 +338,6 @@ int count_words (hashcat_ctx_t *hashcat_ctx, FILE *fd, const char *dictfile, u64
   if (d.stat.st_size == 0)
   {
     *result = 0;
-
     return 0;
   }
 
@@ -370,9 +388,9 @@ int count_words (hashcat_ctx_t *hashcat_ctx, FILE *fd, const char *dictfile, u64
   u64 cnt  = 0;
   u64 cnt2 = 0;
 
-  while (!feof (fd))
+  while (!mm_feof (mfd, fd))
   {
-    load_segment (hashcat_ctx, fd);
+    load_segment (hashcat_ctx, mfd, fd);
 
     comp += wl_data->cnt;
 
@@ -380,12 +398,12 @@ int count_words (hashcat_ctx_t *hashcat_ctx, FILE *fd, const char *dictfile, u64
 
     while (i < wl_data->cnt)
     {
-      u64 len;
-      u64 off;
+      u64 len = mfd->word_base;
+      u64 off = mfd->word_base;
 
       char *ptr = wl_data->buf + i;
 
-      wl_data->func (ptr, wl_data->cnt - i, &len, &off);
+      //wl_data->func (ptr, wl_data->cnt - i, &len, &off);
 
       // do the on-the-fly encoding
 
@@ -511,12 +529,14 @@ int wl_data_init (hashcat_ctx_t *hashcat_ctx)
   if (user_options->left        == true) return 0;
   if (user_options->opencl_info == true) return 0;
   if (user_options->usage       == true) return 0;
+  if (user_options->mm_usage    == true) return 0;
   if (user_options->version     == true) return 0;
 
   wl_data->enabled = true;
 
   wl_data->buf   = (char *) hcmalloc (user_options->segment_size);
   wl_data->avail = user_options->segment_size;
+  ///@TODO-mm
   wl_data->incr  = user_options->segment_size;
   wl_data->cnt   = 0;
   wl_data->pos   = 0;

@@ -118,6 +118,8 @@ void hc_signal (void (callback) (int))
 
 int mycracked (hashcat_ctx_t *hashcat_ctx)
 {
+  hashcat_ctx->cracked[0] = 1;
+
   status_ctx_t *status_ctx = hashcat_ctx->status_ctx;
 
   status_ctx->devices_status = STATUS_CRACKED;

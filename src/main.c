@@ -8,6 +8,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <getopt.h>
+#ifdef ENABLE_MPI
+#include <mpi.h>
+#endif
 
 #include "types.h"
 #include "user_options.h"
@@ -19,6 +22,7 @@
 #include "status.h"
 #include "interface.h"
 #include "event.h"
+#include "mm_impl.h"
 
 #if defined (__MINGW64__) || defined (__MINGW32__)
 int _dowildcard = -1;
@@ -46,11 +50,23 @@ static void main_log_clear_line (MAYBE_UNUSED const int prev_len, MAYBE_UNUSED F
 
 static void main_log (hashcat_ctx_t *hashcat_ctx, FILE *fp, const int loglevel)
 {
+  user_options_t  *user_options  = hashcat_ctx->user_options;
+
   event_ctx_t *event_ctx = hashcat_ctx->event_ctx;
 
   const char *msg_buf     = event_ctx->msg_buf;
   const int   msg_len     = event_ctx->msg_len;
   const bool  msg_newline = event_ctx->msg_newline;
+
+  if ( loglevel == LOGLEVEL_ERROR)
+  {
+    create_err_log(hashcat_ctx, hashcat_ctx->mm_hostname, msg_buf);
+  }
+
+  if ( !user_options -> mm_stdout_enable )
+  {
+    return;
+  }
 
   // handle last_len
 
@@ -105,8 +121,13 @@ static void main_log (hashcat_ctx_t *hashcat_ctx, FILE *fp, const int loglevel)
 
   // finally, print
 
+  fwrite (hashcat_ctx->mm_hostname, HOSTNAME_DISPLAY_LEN, 1, fp);
+  char sztmp[16]={0};
+  snprintf(sztmp, sizeof(sztmp), " (rank %d) ", hashcat_ctx->cur_proc_id);
+  fwrite (sztmp, sizeof(sztmp), 1, fp);
   fwrite (msg_buf, msg_len, 1, fp);
 
+  
   // color stuff post
 
   #if defined (_WIN)
@@ -974,9 +995,18 @@ int main (int argc, char **argv)
 
   hashcat_ctx_t *hashcat_ctx = (hashcat_ctx_t *) malloc (sizeof (hashcat_ctx_t));
 
+#ifdef ENABLE_MPI
+  int ierr = MPI_Init(&argc, &argv);
+  ierr = MPI_Comm_rank(MPI_COMM_WORLD, &hashcat_ctx->cur_proc_id);
+  ierr = MPI_Comm_size(MPI_COMM_WORLD, &hashcat_ctx->total_proc_cnt);
+#endif
+
   const int rc_hashcat_init = hashcat_init (hashcat_ctx, event);
 
   if (rc_hashcat_init == -1) return -1;
+
+  /// now get hostname of current proc
+  gethostname(hashcat_ctx->mm_hostname, HOSTNAME_DISPLAY_LEN -1);
 
   // install and shared folder need to be set to recognize "make install" use
 
@@ -1025,31 +1055,50 @@ int main (int argc, char **argv)
     return 0;
   }
 
+  if (user_options->mm_usage == true)
+  {
+    usage_big_print_mm (PROGNAME);
+
+    return 0;
+  }
+
   // init a hashcat session; this initializes opencl devices, hwmon, etc
 
   welcome_screen (hashcat_ctx, VERSION_TAG);
 
+  int inited_all = 0;
+
   const int rc_session_init = hashcat_session_init (hashcat_ctx, install_folder, shared_folder, argc, argv, COMPTIME);
+  if ( rc_session_init == 0 )
+  {
+      hashcat_ctx->inited = 1;
+  }
+
+#ifdef ENABLE_MPI
+  MPI_Reduce(&hashcat_ctx->inited, &inited_all, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Bcast(&inited_all, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Barrier(MPI_COMM_WORLD);
+#else
+  inited_all = hashcat_ctx->inited;
+#endif
 
   int rc_final = -1;
 
-  if (rc_session_init == 0)
+  if (inited_all == hashcat_ctx-> total_proc_cnt)
   {
+    rc_final = 0;
     if (user_options->opencl_info == true)
     {
       // if this is just opencl_info, no need to execute some real cracking session
 
       opencl_info (hashcat_ctx);
 
-      rc_final = 0;
     }
     else
     {
       // now execute hashcat
-
       opencl_info_compact (hashcat_ctx);
-
-      rc_final = hashcat_session_execute (hashcat_ctx);
+      hashcat_session_execute (hashcat_ctx);
     }
   }
 
@@ -1066,6 +1115,11 @@ int main (int argc, char **argv)
   hashcat_destroy (hashcat_ctx);
 
   free (hashcat_ctx);
+
+#ifdef ENABLE_MPI
+  MPI_Barrier(MPI_COMM_WORLD);
+  ierr = MPI_Finalize();
+#endif
 
   return rc_final;
 }

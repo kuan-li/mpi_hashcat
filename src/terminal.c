@@ -116,6 +116,7 @@ int setup_console ()
 
 void send_prompt ()
 {
+  return;
   fprintf (stdout, "%s", PROMPT);
 
   fflush (stdout);
@@ -123,6 +124,7 @@ void send_prompt ()
 
 void clear_prompt ()
 {
+  return;
   fputc ('\r', stdout);
 
   for (size_t i = 0; i < strlen (PROMPT); i++)

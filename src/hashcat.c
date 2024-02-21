@@ -50,6 +50,7 @@
 #include "user_options.h"
 #include "weak_hash.h"
 #include "wordlist.h"
+#include "mm_impl.h"
 
 // inner2_loop iterates through wordlists, then calls kernel execution
 
@@ -122,13 +123,25 @@ static int inner2_loop (hashcat_ctx_t *hashcat_ctx)
    * Update attack-mode specific stuff based on wordlist
    */
 
-  straight_ctx_update_loop (hashcat_ctx);
+  if (1 == straight_ctx_update_loop (hashcat_ctx))
+  {
+     return 1;
+  }
 
   // words base
 
   const u64 amplifier_cnt = user_options_extra_amplifier (hashcat_ctx);
 
   status_ctx->words_base = status_ctx->words_cnt / amplifier_cnt;
+
+  if ( user_options->attack_mode == ATTACK_MODE_BF )
+  {
+    u64 tmp = status_ctx->words_base;
+    status_ctx->words_off  = (hashcat_ctx->cur_proc_id * tmp ) / hashcat_ctx->total_proc_cnt;
+    status_ctx->words_base = ((hashcat_ctx->cur_proc_id + 1 ) * tmp ) / hashcat_ctx->total_proc_cnt;
+    status_ctx->words_cnt /= hashcat_ctx->total_proc_cnt;
+    status_ctx->words_off_ori  = status_ctx->words_off;
+  }
 
   EVENT (EVENT_CALCULATED_WORDS_BASE);
 
@@ -357,6 +370,24 @@ static int inner1_loop (hashcat_ctx_t *hashcat_ctx)
 
   if (straight_ctx->dicts_cnt)
   {
+    /// allocat memory for hashcat_ct->fd_list
+    hashcat_ctx -> fd_list = hccalloc(straight_ctx->dicts_cnt, sizeof(mm_extend_fd_t) * straight_ctx->dicts_cnt);
+    if ( NULL == hashcat_ctx->fd_list )
+    {
+      return -1;
+    }
+
+    for (u32 dicts_pos = straight_ctx->dicts_pos; dicts_pos < straight_ctx->dicts_cnt; dicts_pos++)
+    {
+      if ( -1 == get_entry_cnt(straight_ctx->dicts[dicts_pos], hashcat_ctx->fd_list + dicts_pos))
+      {
+        hcfree(hashcat_ctx->fd_list);
+        return -1;
+      }
+    }
+
+    straight_divide_workload (hashcat_ctx);
+
     for (u32 dicts_pos = straight_ctx->dicts_pos; dicts_pos < straight_ctx->dicts_cnt; dicts_pos++)
     {
       straight_ctx->dicts_pos = dicts_pos;
@@ -364,6 +395,7 @@ static int inner1_loop (hashcat_ctx_t *hashcat_ctx)
       const int rc_inner2_loop = inner2_loop (hashcat_ctx);
 
       if (rc_inner2_loop == -1) myabort (hashcat_ctx);
+      if (rc_inner2_loop == 1) continue;
 
       if (status_ctx->run_main_level3 == false) break;
     }
@@ -851,6 +883,25 @@ int hashcat_init (hashcat_ctx_t *hashcat_ctx, void (*event) (const u32, struct h
   hashcat_ctx->user_options       = (user_options_t *)        hcmalloc (sizeof (user_options_t));
   hashcat_ctx->wl_data            = (wl_data_t *)             hcmalloc (sizeof (wl_data_t));
 
+  hashcat_ctx->fd_list            = NULL;
+  hashcat_ctx->cracked[0]         = 0;                        /// set to 1 if cracked locally
+  hashcat_ctx->cracked[1]         = 0;                        /// set to 1 if inner quit
+  hashcat_ctx->cracked[2]         = 0;                        /// set to 1 if err happened
+  hashcat_ctx->mm_crack_buf       = NULL; 
+  hashcat_ctx->mm_hostname        = (u8 *)                    hccalloc (HOSTNAME_DISPLAY_LEN, sizeof (u8));
+  hashcat_ctx->crack_log_done     = false;
+  hashcat_ctx->inited             = 0;
+
+  time_t runtime_start;
+  time (&runtime_start);
+  hashcat_ctx->runtime_start      = runtime_start;
+
+
+#ifndef ENABLE_MPI
+  hashcat_ctx->cur_proc_id        = 0;
+  hashcat_ctx->total_proc_cnt     = 1;
+#endif
+
   return 0;
 }
 
@@ -883,7 +934,10 @@ void hashcat_destroy (hashcat_ctx_t *hashcat_ctx)
   hcfree (hashcat_ctx->user_options);
   hcfree (hashcat_ctx->wl_data);
 
+  hcfree(hashcat_ctx->fd_list);
+  hcfree(hashcat_ctx->mm_crack_buf);
   memset (hashcat_ctx, 0, sizeof (hashcat_ctx_t));
+  hcfree(hashcat_ctx->mm_hostname);
 }
 
 int hashcat_session_init (hashcat_ctx_t *hashcat_ctx, const char *install_folder, const char *shared_folder, int argc, char **argv, const int comptime)
@@ -926,7 +980,7 @@ int hashcat_session_init (hashcat_ctx_t *hashcat_ctx, const char *install_folder
 
   const int rc_pidfile_init = pidfile_ctx_init (hashcat_ctx);
 
-  if (rc_pidfile_init == -1) return -1;
+  //if (rc_pidfile_init == -1) return -1;
 
   /**
    * restore

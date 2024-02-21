@@ -660,7 +660,13 @@ typedef enum user_options_map
   IDX_VERSION_LOWER            = 'v',
   IDX_VERSION                  = 'V',
   IDX_WEAK_HASH_THRESHOLD      = 0xff3d,
-  IDX_WORKLOAD_PROFILE         = 'w'
+  IDX_WORKLOAD_PROFILE         = 'w',
+
+  IDX_MM_ATTACK_MODE           = 0xeee1,
+  IDX_MM_LOG_DIR               = 0xeee2,
+  IDX_MM_LOG_INTERVAL          = 0xeee3,
+  IDX_MM_HELP                  = 0xeee4,
+  IDX_MM_STDOUT_ENABLE         = 0xeee5
 
 } user_options_map_t;
 
@@ -1526,6 +1532,12 @@ typedef struct user_options
   u64          limit;
   u64          skip;
 
+  u32          mm_attack_mode;
+  u32          mm_log_interval;
+  char*        mm_log_dir;
+  bool         mm_usage;
+  bool         mm_stdout_enable;
+
 } user_options_t;
 
 typedef struct user_options_extra
@@ -1790,6 +1802,7 @@ typedef struct status_ctx
    */
 
   u64  words_off;               // used by dispatcher; get_work () as offset; attention: needs to be redone on in restore case!
+  u64  words_off_ori;           // used by dispatcher; get_work () as offset; attention: needs to be redone on in restore case!
   u64  words_cur;               // used by dispatcher; the different to words_cur_next is that this counter guarantees that the work from zero to this counter has been actually computed
                                 // has been finished actually, can be used for restore point therefore
   u64  words_base;              // the unamplified max keyspace
@@ -1877,6 +1890,15 @@ typedef struct event_ctx
 
 } event_ctx_t;
 
+typedef struct mm_extend_fd 
+{
+  int is_valid;               /// 1 if valid, -1 otherwise
+  unsigned long words_cnt;    /// total words in dict file
+  unsigned long words_start;  /// start pos, 0-based
+  unsigned long words_end;    /// end pos, also 0-based;
+  int word_base;              /// how many bytes per word
+} mm_extend_fd_t;
+
 typedef struct hashcat_ctx
 {
   bitmap_ctx_t          *bitmap_ctx;
@@ -1907,6 +1929,17 @@ typedef struct hashcat_ctx
   user_options_t        *user_options;
   wl_data_t             *wl_data;
 
+  int                   total_proc_cnt;
+  int                   cur_proc_id;  /// 0-index 
+
+  mm_extend_fd_t       *fd_list;
+  int                   cracked[3];   /// 0 cracked, 1 finished, 2 err happened
+  u8*                   mm_crack_buf; /// faciliate log out
+  u8*                   mm_hostname;  /// faciliate mpi debug
+  bool                  crack_log_done; 
+  int                   inited;
+  time_t                runtime_start;
+
   void (*event) (const u32, struct hashcat_ctx *, const void *, const size_t);
 
 } hashcat_ctx_t;
@@ -1918,5 +1951,6 @@ typedef struct thread_param
   hashcat_ctx_t *hashcat_ctx;
 
 } thread_param_t;
+
 
 #endif // _TYPES_H

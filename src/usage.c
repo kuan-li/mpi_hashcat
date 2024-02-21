@@ -9,7 +9,7 @@
 static const char *USAGE_MINI[] =
 {
   "Usage: %s [options]... hash|hashfile|hccapxfile [dictionary|mask|directory]...",
-  "",
+  "Copyright @ HNU mm 2017",
   "Try --help for more help.",
   NULL
 };
@@ -452,6 +452,11 @@ void usage_mini_print (const char *progname)
 }
 
 void usage_big_print (const char *progname)
+{
+  return;
+}
+
+void usage_big_print_mm (const char *progname)
 {
   for (int i = 0; USAGE_BIG[i] != NULL; i++)
   {

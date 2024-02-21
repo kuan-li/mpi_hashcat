@@ -17,7 +17,7 @@
 #endif
 
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-#error "compiling for big-endian architecture not supported"
+//#error "compiling for big-endian architecture not supported"
 #endif
 
 #ifndef _GNU_SOURCE
